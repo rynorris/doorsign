@@ -1,6 +1,8 @@
 import base64
 import requests
+import sqlite3
 import sys
+import time
 import uuid
 
 
@@ -20,6 +22,9 @@ Or for "DEEP_FOCUS", you might generate a prompt "Anthropomorphic spoon in deep 
 
 You MUST reply with ONLY the image generation prompt and NOTHING else. Your output will be passed directly into the image generation model.
 """
+
+
+# AI Functions
 
 
 def load_api_key():
@@ -53,22 +58,50 @@ def generate_image(api_key, prompt):
     }
     data = openai_request(api_key, "/v1/images/generations", body)
     img = data["data"][0]
-    print("Revised prompt: " + img["revised_prompt"])
-    return base64.b64decode(img["b64_json"])
+    return (img["revised_prompt"], base64.b64decode(img["b64_json"]))
 
 
-def get_sign_prompt(api_key, status):
-    return chat_completion(api_key, GPT_4_TURBO, [{"role": "system", "content": SIGN_SYSTEM_PROMPT}, {"role": "user", "content": f"Office status: {status}"}])
+def get_sign_prompt(api_key, status, recent_prompts=None):
+    messages = [
+        {"role": "system", "content": SIGN_SYSTEM_PROMPT},
+        {"role": "system", "content": "Here are some of the prompts you recently generated. Make sure the next one is different and creative.\n" + "\n".join(recent_prompts or [])},
+        {"role": "user", "content": f"Office status: {status}"},
+    ]
+    return chat_completion(api_key, GPT_4_TURBO, messages)
+
+
+# DB Functions
+
+
+def init_db(cur):
+    cur.execute("CREATE TABLE IF NOT EXISTS images(uuid, timestamp, status, prompt, revised_prompt, filename)")
+
+
+def get_most_recent_prompts(cur):
+    res = cur.execute("SELECT prompt FROM images LIMIT 10")
+    return (row[0] for row in res.fetchall())
+
+
+def record_image(cur, img_id, status, prompt, revised_prompt, filename):
+    cur.execute(
+        "INSERT INTO images VALUES (?, ?, ?, ?, ?, ?)",
+        (img_id, int(time.time()), status, prompt, revised_prompt, filename),
+    )
 
 
 if __name__ == '__main__':
     STATUS = sys.argv[1]
     API_KEY = load_api_key()
+    con = sqlite3.connect("images.db")
+    cur = con.cursor()
+    init_db(cur)
 
-    img_id = uuid.uuid4()
-    prompt = get_sign_prompt(API_KEY, STATUS)
+    img_id = str(uuid.uuid4())
+    prompt = get_sign_prompt(API_KEY, STATUS, recent_prompts=get_most_recent_prompts(cur))
     print(prompt)
-    img = generate_image(API_KEY, prompt)
+
+    revised_prompt, img = generate_image(API_KEY, prompt)
+    print(revised_prompt)
 
     out_file = f"{STATUS}.{img_id}.png"
 
@@ -76,3 +109,7 @@ if __name__ == '__main__':
         f.write(img)
 
     print(out_file)
+
+    record_image(cur, img_id, STATUS, prompt, revised_prompt, out_file)
+
+    con.commit()
