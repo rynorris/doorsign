@@ -1,4 +1,5 @@
 import base64
+import json
 import requests
 import sqlite3
 import sys
@@ -8,7 +9,7 @@ import uuid
 
 GPT_4_TURBO = "gpt-4-1106-preview"
 
-SIGN_SYSTEM_PROMPT = """
+DALLE_SYSTEM_PROMPT = """
 You are a key part of a system which generates images to display on the sign on the door of a software engineer's office.
 
 The office can be in several states such as DEEP_FOCUS, CHILLING or IN_A_MEETING.
@@ -21,6 +22,50 @@ Or for "CHILLING", you might generate a prompt "Kangaroo sunbathing on a beatifu
 Or for "DEEP_FOCUS", you might generate a prompt "Anthropomorphic spoon in deep focus writing code on a laptop made of toast. Detailed pixar-style 3D animation."
 
 You MUST reply with ONLY the image generation prompt and NOTHING else. Your output will be passed directly into the image generation model.
+"""
+
+
+SD_SYSTEM_PROMPT = """
+You are a key part of a system which generates images to display on the sign on the door of a software engineer's office.
+
+The office can be in several states such as DEEP_FOCUS, CHILLING or IN_A_MEETING.
+
+Your role is to generate a text prompt to be sent to the AI image-generation model stablediffusion, in order to generate an image which effectively communicates the current office status.
+You should ensure that the images are creative and interesting. For example by using animals, robots, or anthropomorphised objects rather than humans.
+
+For example, for IN_A_MEETING, you might generate a prompt "Robots of all shapes and sizes, sitting around a table in a board room. Watercolor."
+Or for "CHILLING", you might generate a prompt "Kangaroo sunbathing on a beatiful beach. Photorealistic."
+Or for "DEEP_FOCUS", you might generate a prompt "Anthropomorphic spoon in deep focus writing code on a laptop made of toast. Detailed pixar-style 3D animation."
+
+You MUST reply with a JSON object containing two fields:
+    - "prompt" - the positive prompt for the image generation, it should include a brief description of the scene followed by a comma-separated list of keywords to nudge the generation model in the right direction. This could include things such as medium, style, artist, color, lighting, resolution, etc.
+    - "negativePrompt" - the negative prompt for the image generation
+
+Examples:
+{
+  "prompt": "seascape by Ray Collins and artgerm, front view of a perfect wave, sunny background, ultra detailed water, 4k resolution",
+  "negativePrompt": "low resolution, low details, blurry, clouds"
+}
+
+{
+  "prompt": "Cute small cat sitting in a movie theater eating chicken wiggs watching a movie ,unreal engine, cozy indoor lighting, artstation, detailed, digital painting,cinematic,character design by mark ryden and pixar and hayao miyazaki, unreal 5, daz, hyperrealistic, octane render",
+  "negativePrompt": "ugly, ugly arms, ugly hands"
+}
+
+{
+  "prompt": "High quality 8K painting impressionist style of a Japanese modern city street with a girl on the foreground wearing a traditional wedding dress with a fox mask, staring at the sky, daylight",
+  "negativePrompt": "blur, cars, low quality"
+}
+
+{
+  "prompt": "Cute small Fox sitting in a movie theater eating popcorn watching a movie ,unreal engine, cozy indoor lighting, artstation, detailed, digital painting,cinematic,character design by mark ryden and pixar and hayao miyazaki, unreal 5, daz, hyperrealistic, octane render",
+  "negativePrompt": "ugly, ugly arms, ugly hands"
+}
+
+{
+  "prompt": "cute toy owl made of suede, geometric accurate, relief on skin, plastic relief surface of body, intricate details, cinematic",
+  "negativePrompt": "ugly, ugly arms, ugly hands, ugly teeth, ugly nose, ugly mouth, ugly eyes, ugly ears"
+}
 """
 
 
@@ -39,12 +84,17 @@ def openai_request(api_key, path, body):
     }
 
     resp = requests.post(f"https://api.openai.com{path}", json=body, headers=headers)
-    resp.raise_for_status()
+
+    try:
+        resp.raise_for_status()
+    except:
+        print(resp.text)
+        raise
     return resp.json()
 
 
 def chat_completion(api_key, model, messages):
-    data = openai_request(api_key, "/v1/chat/completions", body={"model": model, "messages": messages})
+    data = openai_request(api_key, "/v1/chat/completions", body={"model": model, "messages": messages, "response_format": {"type": "json_object"}})
     return data["choices"][0]["message"]["content"]
 
 
@@ -61,9 +111,9 @@ def generate_image(api_key, prompt):
     return (img["revised_prompt"], base64.b64decode(img["b64_json"]))
 
 
-def get_sign_prompt(api_key, status, recent_prompts=None):
+def get_sign_prompt(api_key, system_prompt, status, recent_prompts=None):
     messages = [
-        {"role": "system", "content": SIGN_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "system", "content": "Here are some of the prompts you recently generated. Make sure the next one is different and creative.\n" + "\n".join(recent_prompts or [])},
         {"role": "user", "content": f"Office status: {status}"},
     ]
@@ -97,10 +147,10 @@ if __name__ == '__main__':
     init_db(cur)
 
     img_id = str(uuid.uuid4())
-    prompt = get_sign_prompt(API_KEY, STATUS, recent_prompts=get_most_recent_prompts(cur))
-    print(prompt)
+    prompt_data = json.loads(get_sign_prompt(API_KEY, SD_SYSTEM_PROMPT, STATUS, recent_prompts=get_most_recent_prompts(cur)))
+    print(prompt_data)
 
-    revised_prompt, img = generate_image(API_KEY, prompt)
+    revised_prompt, img = generate_image(API_KEY, prompt_data["prompt"])
     print(revised_prompt)
 
     out_file = f"{STATUS}.{img_id}.png"
