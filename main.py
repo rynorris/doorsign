@@ -71,7 +71,8 @@ def display_image(filename, caption=None):
 def choose_image(status):
     files = os.listdir(IMG_DIR)
     files = [f for f in files if f.startswith(status) and f.endswith(".small.jpg")]
-    return files[random.randrange(len(files))]
+    file = files[random.randrange(len(files))]
+    return f"{IMG_DIR}/{file}"
 
 
 while True:
