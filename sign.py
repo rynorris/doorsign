@@ -1,11 +1,17 @@
 import base64
 from dataclasses import dataclass, asdict
 import json
+import os
 import requests
 import sqlite3
 import sys
 import time
 import uuid
+from PIL import Image
+
+
+DISPLAY_WIDTH = 800
+DISPLAY_HEIGHT = 480
 
 
 GPT_4_TURBO = "gpt-4-1106-preview"
@@ -23,65 +29,6 @@ You MUST reply in the following format:
 
 For example:
 {examples}
-"""
-
-DALLE_SYSTEM_PROMPT = """
-You are a key part of a system which generates images to display on the sign on the door of a software engineer's office.
-
-The office can be in several states such as DEEP_FOCUS, CHILLING or IN_A_MEETING.
-
-Your role is to generate a text prompt to be sent to an AI image-generation model, in order to generate an image which effectively communicates the current office status.
-You should ensure that the images are creative and interesting. For example by using animals, robots, or anthropomorphised objects rather than humans.
-
-For example, for IN_A_MEETING, you might generate a prompt "Robots of all shapes and sizes, sitting around a table in a board room. Watercolor."
-Or for "CHILLING", you might generate a prompt "Kangaroo sunbathing on a beatiful beach. Photorealistic."
-Or for "DEEP_FOCUS", you might generate a prompt "Anthropomorphic spoon in deep focus writing code on a laptop made of toast. Detailed pixar-style 3D animation."
-
-You MUST reply with ONLY the image generation prompt and NOTHING else. Your output will be passed directly into the image generation model.
-"""
-
-
-SD_SYSTEM_PROMPT = """
-You are a key part of a system which generates images to display on the sign on the door of a software engineer's office.
-
-The office can be in several states such as DEEP_FOCUS, CHILLING or IN_A_MEETING.
-
-Your role is to generate a text prompt to be sent to the AI image-generation model stablediffusion, in order to generate an image which effectively communicates the current office status.
-You should ensure that the images are creative and interesting. For example by using animals, robots, or anthropomorphised objects rather than humans.
-
-For example, for IN_A_MEETING, you might generate a prompt "Robots of all shapes and sizes, sitting around a table in a board room. Watercolor."
-Or for "CHILLING", you might generate a prompt "Kangaroo sunbathing on a beatiful beach. Photorealistic."
-Or for "DEEP_FOCUS", you might generate a prompt "Anthropomorphic spoon in deep focus writing code on a laptop made of toast. Detailed pixar-style 3D animation."
-
-You MUST reply with a JSON object containing two fields:
-    - "prompt" - the positive prompt for the image generation, it should include a brief description of the scene followed by a comma-separated list of keywords to nudge the generation model in the right direction. This could include things such as medium, style, artist, color, lighting, resolution, etc.
-    - "negativePrompt" - the negative prompt for the image generation
-
-Examples:
-{
-  "prompt": "seascape by Ray Collins and artgerm, front view of a perfect wave, sunny background, ultra detailed water, 4k resolution",
-  "negativePrompt": "low resolution, low details, blurry, clouds"
-}
-
-{
-  "prompt": "Cute small cat sitting in a movie theater eating chicken wiggs watching a movie ,unreal engine, cozy indoor lighting, artstation, detailed, digital painting,cinematic,character design by mark ryden and pixar and hayao miyazaki, unreal 5, daz, hyperrealistic, octane render",
-  "negativePrompt": "ugly, ugly arms, ugly hands"
-}
-
-{
-  "prompt": "High quality 8K painting impressionist style of a Japanese modern city street with a girl on the foreground wearing a traditional wedding dress with a fox mask, staring at the sky, daylight",
-  "negativePrompt": "blur, cars, low quality"
-}
-
-{
-  "prompt": "Cute small Fox sitting in a movie theater eating popcorn watching a movie ,unreal engine, cozy indoor lighting, artstation, detailed, digital painting,cinematic,character design by mark ryden and pixar and hayao miyazaki, unreal 5, daz, hyperrealistic, octane render",
-  "negativePrompt": "ugly, ugly arms, ugly hands"
-}
-
-{
-  "prompt": "cute toy owl made of suede, geometric accurate, relief on skin, plastic relief surface of body, intricate details, cinematic",
-  "negativePrompt": "ugly, ugly arms, ugly hands, ugly teeth, ugly nose, ugly mouth, ugly eyes, ugly ears"
-}
 """
 
 
@@ -103,6 +50,42 @@ class DallEPrompt:
             ("IN_A_MEETING", DallEPrompt("Robots of all shapes and sizes, sitting around a table in a board room. Watercolor.")),
             ("CHILLING", DallEPrompt("Kangaroo sunbathing on a beautiful beach. Photorealistic.")),
             ("DEEP_FOCUS", DallEPrompt("Anthropomorphic spoon in deep focus, writing code on a laptop made of toast. Detailed pixar-style 3D animation.")),
+        ]
+
+
+@dataclass
+class StableDiffusionPrompt:
+    prompt: str
+    negativePrompt: str
+
+    @classmethod
+    def parse(cls, json_string: str) -> "StableDiffusionPrompt":
+        return cls(**json.loads(json_string))
+
+    @staticmethod
+    def description():
+        return (
+            "a JSON object containing two fields:\n"
+            "  - \"prompt\": the positive prompt for the image generation, including a brief description "
+            "of the scene and a comma-separated list of keywords related to style, medium, lighting, etc.\n"
+            "  - \"negativePrompt\": the negative prompt for the image generation, indicating what should be avoided"
+        )
+
+    @staticmethod
+    def examples():
+        return [
+            ("IN_A_MEETING", StableDiffusionPrompt(
+                prompt="A variety of robots of different shapes and sizes, engaged in a discussion around a sleek, futuristic table in a high-tech boardroom, neon lighting, cyberpunk aesthetic, digital art, 4K resolution",
+                negativePrompt="blurry, dark, low resolution, human figures"
+            )),
+            ("CHILLING", StableDiffusionPrompt(
+                prompt="A kangaroo lying back on a lounge chair, sunglasses on, with a tropical drink, relaxed on a sunny beach, clear skies, vibrant colors, photorealistic style, high resolution",
+                negativePrompt="nighttime, rain, snow, busy, crowded"
+            )),
+            ("DEEP_FOCUS", StableDiffusionPrompt(
+                prompt="An anthropomorphic spoon wearing glasses, deeply focused on coding on a laptop made of toast, surrounded by tech gadgets, vibrant yet focused lighting, Pixar-style animation, high detail",
+                negativePrompt="blurry, abstract, dark, cluttered"
+            ))
         ]
 
 
@@ -182,11 +165,21 @@ def record_image(cur, img_id, status, prompt, revised_prompt, filename):
     )
 
 
-def resize_image_for_sign(path):
-    from PIL import Image
+def resize_image_for_sign(path, width, height):
     img = Image.open(path)
-    crop = img.crop((96, 32, 1792-96, 1024-32))
-    small = crop.resize((800, 480))
+    img_w, img_h = img.size
+
+    scale = min(int(img_w / width), int(img_h / height))
+
+    crop_w = width * scale
+    crop_h = height * scale
+    crop_x = (img_w - crop_w) / 2
+    crop_y = (img_h - crop_h) / 2
+
+    print(f"Cropping to ({crop_w}, {crop_h}). Scaling to ({width}, {height}).")
+
+    crop = img.crop((crop_x, crop_y, img_w - crop_x, img_h - crop_y))
+    small = crop.resize((width, height))
 
     base = os.path.splitext(os.path.basename(path))[0]
     out_path = f"{base}.small.jpg"
@@ -195,28 +188,36 @@ def resize_image_for_sign(path):
 
 
 if __name__ == '__main__':
-    STATUS = sys.argv[1]
-    API_KEY = load_api_key()
-    con = sqlite3.connect("images.db")
-    cur = con.cursor()
-    init_db(cur)
+    cmd = sys.argv[1]
+    args = sys.argv[2:]
 
-    img_id = str(uuid.uuid4())
-    prompt_class = DallEPrompt
-    system_prompt = generate_system_prompt(prompt_class)
-    prompt = prompt_class.parse(get_sign_prompt(API_KEY, system_prompt, STATUS, recent_prompts=get_most_recent_prompts(cur)))
-    print(prompt)
+    if cmd == "gen":
+        status = args[0]
+        api_key = load_api_key()
+        con = sqlite3.connect("images.db")
+        cur = con.cursor()
+        init_db(cur)
 
-    revised_prompt, img = generate_image(API_KEY, prompt)
-    print(revised_prompt)
+        img_id = str(uuid.uuid4())
+        prompt_class = DallEPrompt
+        system_prompt = generate_system_prompt(prompt_class)
+        prompt = prompt_class.parse(get_sign_prompt(api_key, system_prompt, status, recent_prompts=get_most_recent_prompts(cur)))
+        print(prompt)
 
-    out_file = f"{STATUS}.{img_id}.png"
+        revised_prompt, img = generate_image(api_key, prompt)
+        print(revised_prompt)
 
-    with open(out_file, "wb") as f:
-        f.write(img)
+        out_file = f"{STATUS}.{img_id}.png"
 
-    print(out_file)
+        with open(out_file, "wb") as f:
+            f.write(img)
 
-    record_image(cur, img_id, STATUS, prompt.prompt, revised_prompt, out_file)
+        print(out_file)
 
-    con.commit()
+        record_image(cur, img_id, status, prompt.prompt, revised_prompt, out_file)
+
+        con.commit()
+
+    elif cmd == "resize":
+        path = args[0]
+        resize_image_for_sign(path, DISPLAY_WIDTH, DISPLAY_HEIGHT)
