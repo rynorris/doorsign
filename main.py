@@ -42,6 +42,7 @@ graphics = PicoGraphics(DISPLAY)
 graphics.set_font(CAPTION_FONT)
 
 # set up the SD card
+print("Mounting SD Card...")
 sd_spi = SPI(0, sck=Pin(18, Pin.OUT), mosi=Pin(19, Pin.OUT), miso=Pin(16, Pin.OUT))
 sd = sdcard.SDCard(sd_spi, Pin(22))
 os.mount(sd, "/sd")
@@ -77,9 +78,8 @@ def choose_image(status):
     return f"{IMG_DIR}/{file}"
 
 
+print("Ready!")
 while True:
-    print("Going to sleep...")
-
     inky_frame.turn_off()
 
     if inky_frame.woken_by_button():
