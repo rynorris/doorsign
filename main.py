@@ -7,7 +7,7 @@ import inky_frame
 import random
 
 
-IMG_DIR = "/remote"
+IMG_DIR = "/sd/images"
 
 STATUSES = ["IN_A_MEETING", "WRITING_CODE", "AT_LUNCH", "OUT_OF_OFFICE"]
 CAPTIONS = [
