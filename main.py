@@ -75,6 +75,8 @@ def choose_image(status):
 
 
 while True:
+    print("Going to sleep...")
+
     inky_frame.turn_off()
 
     if inky_frame.woken_by_button():
