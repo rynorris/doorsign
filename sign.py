@@ -181,7 +181,7 @@ def resize_image_for_sign(path, width, height):
     crop = img.crop((crop_x, crop_y, img_w - crop_x, img_h - crop_y))
     small = crop.resize((width, height))
 
-    base = os.path.splitext(os.path.basename(path))[0]
+    base = os.path.splitext(path)[0]
     out_path = f"{base}.small.jpg"
     small.save(out_path)
     return out_path
@@ -207,7 +207,7 @@ if __name__ == '__main__':
         revised_prompt, img = generate_image(api_key, prompt)
         print(revised_prompt)
 
-        out_file = f"{STATUS}.{img_id}.png"
+        out_file = f"images/{status}.{img_id}.png"
 
         with open(out_file, "wb") as f:
             f.write(img)
