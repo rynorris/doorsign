@@ -1,5 +1,6 @@
 from picographics import PicoGraphics, DISPLAY_INKY_FRAME_7 as DISPLAY  # 7.3"
 from machine import Pin, SPI
+import gc
 import jpegdec
 import sdcard
 import os
@@ -101,6 +102,9 @@ while True:
 
         print(f"Selected image: {file}")
         display_image(file, caption=caption)
+
+        print("Collecting garbage...")
+        gc.collect()
 
         print("Done")
 
