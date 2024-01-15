@@ -46,9 +46,11 @@ class DallEPrompt:
 
     @staticmethod
     def description():
-        return "a JSON object containing two fields:\n"
-               "  - \"prompt\": a brief description of the scene, along with hints as to desired style, medium, lighting, etc."
-               "  - \"caption\": a short caption to display on the sign, just in case it's not clear from the image what the status is."
+        return (
+           "a JSON object containing two fields:\n"
+           "  - \"prompt\": a brief description of the scene, along with hints as to desired style, medium, lighting, etc."
+           "  - \"caption\": a short caption to display on the sign, just in case it's not clear from the image what the status is."
+        )
 
     @staticmethod
     def examples():
@@ -95,18 +97,18 @@ class StableDiffusionPrompt:
         return [
             ("IN_A_MEETING", StableDiffusionPrompt(
                 prompt="A variety of robots of different shapes and sizes, engaged in a discussion around a sleek, futuristic table in a high-tech boardroom, neon lighting, cyberpunk aesthetic, digital art, 4K resolution",
-                negativePrompt="blurry, dark, low resolution, human figures"
-                caption="In a meeting"
+                negativePrompt="blurry, dark, low resolution, human figures",
+                caption="In a meeting",
             )),
             ("CHILLING", StableDiffusionPrompt(
                 prompt="A kangaroo lying back on a lounge chair, sunglasses on, with a tropical drink, relaxed on a sunny beach, clear skies, vibrant colors, photorealistic style, high resolution",
-                negativePrompt="nighttime, rain, snow, busy, crowded"
-                caption="Just chilling"
+                negativePrompt="nighttime, rain, snow, busy, crowded",
+                caption="Just chilling",
             )),
             ("DEEP_FOCUS", StableDiffusionPrompt(
                 prompt="An anthropomorphic spoon wearing glasses, deeply focused on coding on a laptop made of toast, surrounded by tech gadgets, vibrant yet focused lighting, Pixar-style animation, high detail",
-                negativePrompt="blurry, abstract, dark, cluttered"
-                caption="Deep in focused work"
+                negativePrompt="blurry, abstract, dark, cluttered",
+                caption="Deep in focused work",
             ))
         ]
 
