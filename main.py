@@ -56,6 +56,7 @@ def display_image(filename, caption=None):
     j.open_file(filename)
 
     # Decode the JPEG
+    print("Decoding JPEG...")
     j.decode(0, 0, jpegdec.JPEG_SCALE_FULL)
 
     if caption:
@@ -65,6 +66,7 @@ def display_image(filename, caption=None):
         graphics.text(caption, 5, CAPTION_Y, WIDTH, CAPTION_SCALE)
 
     # Display the result
+    print("Updating display...")
     graphics.update()
 
 
@@ -97,7 +99,7 @@ while True:
         caption = CAPTIONS[ix]
         file = choose_image(status)
 
-        print(f"Displaying image: {file}")
+        print(f"Selected image: {file}")
         display_image(file, caption=caption)
 
         print("Done")
