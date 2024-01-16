@@ -190,6 +190,13 @@ def record_image(cur, img_id, status, prompt, revised_prompt, filename):
 
 
 def resize_image_for_sign(path, width, height):
+    base = os.path.splitext(path)[0]
+    out_path = f"{base}.small.jpg"
+
+    if os.path.exists(out_path):
+        print(f"{out_path} already exists")
+        return
+
     img = Image.open(path)
     img_w, img_h = img.size
 
@@ -205,8 +212,6 @@ def resize_image_for_sign(path, width, height):
     crop = img.crop((crop_x, crop_y, img_w - crop_x, img_h - crop_y))
     small = crop.resize((width, height))
 
-    base = os.path.splitext(path)[0]
-    out_path = f"{base}.small.jpg"
     small.save(out_path)
     return out_path
 
