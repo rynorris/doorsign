@@ -10,19 +10,20 @@ import random
 
 IMG_DIR = "/sd/images"
 
-STATUSES = ["IN_A_MEETING", "WRITING_CODE", "AT_LUNCH", "OUT_OF_OFFICE"]
+STATUSES = ["IN_A_MEETING", "WRITING_CODE", "AT_LUNCH", "OUT_OF_OFFICE", "CHILLING"]
 CAPTIONS = [
     "In a meeting",
     "Writing code",
     "At lunch",
     "Done for the day",
+    "Just chilling",
 ]
 BUTTONS = [
     inky_frame.button_a,
     inky_frame.button_b,
     inky_frame.button_c,
     inky_frame.button_d,
-    # inky_frame.button_e,
+    inky_frame.button_e,
 ]
 
 WIDTH = 800
