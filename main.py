@@ -82,8 +82,6 @@ def choose_image(status):
 
 print("Ready!")
 while True:
-    inky_frame.turn_off()
-
     if inky_frame.woken_by_button():
         try:
             ix, button = next((item for item in enumerate((b for b in BUTTONS)) if item[1].read()))
@@ -108,4 +106,6 @@ while True:
         gc.collect()
 
         print("Done")
+
+    inky_frame.turn_off()
 
