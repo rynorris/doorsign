@@ -148,10 +148,10 @@ def generate_system_prompt(prompt_class):
     return SYSTEM_PROMPT.format(output_format=description, examples=examples)
 
 
-def generate_image(api_key, prompt: DallEPrompt):
+def generate_image(api_key, prompt: str):
     body = {
         "model": "dall-e-3",
-        "prompt": prompt.prompt,
+        "prompt": prompt,
         "size": "1792x1024",
         "n": 1,
         "response_format": "b64_json",
@@ -233,7 +233,7 @@ if __name__ == '__main__':
         prompt = prompt_class.parse(get_sign_prompt(api_key, system_prompt, status, recent_prompts=get_most_recent_prompts(cur)))
         print(prompt)
 
-        revised_prompt, img = generate_image(api_key, prompt)
+        revised_prompt, img = generate_image(api_key, prompt.prompt)
         print(revised_prompt)
 
         out_file = f"images/{status}.{img_id}.png"
